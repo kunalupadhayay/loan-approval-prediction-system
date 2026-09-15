@@ -1,0 +1,42 @@
+[
+  {
+    "feature": "Credit_History",
+    "importance": 0.4434
+  },
+  {
+    "feature": "Credit_Score",
+    "importance": 0.1604
+  },
+  {
+    "feature": "Debt_to_Income",
+    "importance": 0.1145
+  },
+  {
+    "feature": "ApplicantIncome",
+    "importance": 0.0642
+  },
+  {
+    "feature": "LoanAmount",
+    "importance": 0.053
+  },
+  {
+    "feature": "CoapplicantIncome",
+    "importance": 0.0324
+  },
+  {
+    "feature": "Existing_Loans",
+    "importance": 0.0281
+  },
+  {
+    "feature": "Age",
+    "importance": 0.0259
+  },
+  {
+    "feature": "Loan_Amount_Term",
+    "importance": 0.016
+  },
+  {
+    "feature": "Education_Graduate",
+    "importance": 0.0069
+  }
+]

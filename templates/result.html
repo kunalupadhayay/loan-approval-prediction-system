@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}AI-Based Loan Approval System{% endblock %}
+
+{% block content %}
+<section class="hero wrap">
+  <p class="eyebrow">Assessment result</p>
+  <h1>{{ result.prediction }}</h1>
+</section>
+
+<section class="workspace workspace-single wrap">
+  <aside class="decision-panel">
+    <div class="decision-result">
+      <div class="stamp {{ 'stamp-reject' if result.prediction == 'Rejected' else '' }}">
+        <span>{{ result.prediction }}</span>
+      </div>
+
+      <div class="confidence">
+        <div class="confidence-track">
+          <div class="confidence-fill {{ 'confidence-fill-reject' if result.prediction == 'Rejected' else '' }}"
+               style="width: {{ result.approve_probability }}%;"></div>
+        </div>
+        <p class="confidence-label">{{ result.approve_probability }}% model confidence in approval</p>
+      </div>
+
+      <div class="reasons">
+        <h3>What drove this</h3>
+        <ul>
+          {% for reason in result.reasons %}
+          <li class="reason-{{ reason.type }}">{{ reason.text }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </aside>
+</section>
+
+<section class="wrap">
+  <a href="{{ url_for('index') }}" class="btn-primary">Run another assessment</a>
+</section>
+{% endblock %}
