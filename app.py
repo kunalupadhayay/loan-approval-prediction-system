@@ -72,7 +72,7 @@ OPTIONAL_DEFAULTS = {
 NUMERIC_RANGES = {
     "applicant_income": (0, 10_000_000),
     "coapplicant_income": (0, 10_000_000),
-    "loan_amount": (100, 15_000_000),  # full rupees; model uses lakhs
+    "loan_amount": (10_000, 15_000_000),  # full rupees; model uses lakhs
     "loan_term": (1, 40),  # 1 to 40 years; converted to months for the model
     "credit_score": (300, 900),
     "age": (18, 100),
