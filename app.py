@@ -1,8 +1,4 @@
-"""
-Flask web application for the AI Loan Approval System.
-Loads a pre-trained sklearn pipeline and serves a form-based UI
-plus a JSON prediction API.
-"""
+
 
 import json
 import os
@@ -36,18 +32,7 @@ FEATURE_COLUMNS = [
     "Debt_to_Income",
     "Property_Area",
 ]
-# NOTE: Gender and Married were removed as model inputs. An audit of the
-# training data generator showed these fields have no causal relationship
-# to loan approval, yet the previous model still picked up spurious,
-# noise-driven correlations from them (a measurable gender/marital-status
-# gap in approval probability with no underlying justification). The
-# retrained model no longer sees or uses these fields at all.
 
-# --- Validation rules -------------------------------------------------
-# Fields that MUST be present in the request. We never silently invent a
-# value for these, because a missing value silently defaulting to a
-# "good" value (e.g. Credit_History -> 1) would bias the model toward
-# approval for incomplete/malformed submissions.
 REQUIRED_FIELDS = [
     "dependents",
     "education",
