@@ -1,10 +1,8 @@
 
 
-import json
 import os
 import pickle
 
-import numpy as np
 import pandas as pd
 from flask import Flask, jsonify, render_template, request
 
@@ -77,7 +75,8 @@ class ValidationError(ValueError):
 
 
 def _get(form, key):
-    value = form.get(key)
+    """Read a form value, trimming whitespace and treating empty strings as missing."""
+    value = form.get(key) if form is not None else None
     if value is None:
         return None
     if isinstance(value, str):
@@ -85,72 +84,123 @@ def _get(form, key):
     return value if value != "" else None
 
 
+def _get_first(form, *keys):
+    """Return the first present, non-empty value from a list of UI/API aliases."""
+    for key in keys:
+        value = _get(form, key)
+        if value is not None:
+            return value
+    return None
+
+
 def _to_number(value, field_name):
     try:
+        # Accept UI values such as "20 years" as well as plain numbers.
+        if isinstance(value, str):
+            value = value.lower().replace("years", "").replace("year", "").strip()
         return float(value)
     except (TypeError, ValueError):
         raise ValidationError(f"'{field_name}' must be a number, got {value!r}.")
 
 
 def validate_and_clean(form):
-    """Validate incoming form/json data. Raises ValidationError on any
-    problem instead of silently coercing bad data into a scoreable row."""
+    """Validate current UI form fields and normalize them to the model schema."""
+    if form is None:
+        raise ValidationError("No form data was received. Please submit the application again.")
 
-    # 1. Required fields must actually be present -- no silent defaults
-    #    for anything that materially affects the model's decision.
-    missing = [f for f in REQUIRED_FIELDS if _get(form, f) is None]
+    # Support both the current webpage field names and older/API field names.
+    aliases = {
+        "dependents": ("dependents",),
+        "education": ("education",),
+        "self_employed": ("self_employed", "employment"),
+        "applicant_income": ("applicant_income", "monthly_income"),
+        "coapplicant_income": ("coapplicant_income", "co_applicant_income"),
+        "loan_amount": ("loan_amount",),
+        "loan_term": ("loan_term", "term"),
+        "credit_score": ("credit_score",),
+        "age": ("age",),
+        "existing_loans": ("existing_loans",),
+        "credit_history": ("credit_history",),
+        "property_area": ("property_area",),
+    }
+    raw = {name: _get_first(form, *keys) for name, keys in aliases.items()}
+
+    required = ("dependents", "education", "self_employed", "applicant_income",
+                "loan_amount", "age", "credit_history", "property_area")
+    missing = [name for name in required if raw[name] is None]
     if missing:
-        raise ValidationError(
-            f"Missing required field(s): {', '.join(missing)}."
-        )
+        # Report the user-facing name when the common UI alias was expected.
+        display = {
+            "self_employed": "employment",
+            "applicant_income": "monthly_income",
+        }
+        missing_text = ", ".join(display.get(name, name) for name in missing)
+        raise ValidationError(f"Missing required field(s): {missing_text}.")
 
     cleaned = {}
 
-    # 2. Categorical fields: must be one of the known training categories.
-    for field, allowed in VALID_CATEGORIES.items():
-        raw = _get(form, field)
-        if raw not in allowed:
-            raise ValidationError(
-                f"'{field}' must be one of {sorted(allowed)}, got {raw!r}."
-            )
-        cleaned[field] = raw
+    # Employment dropdown in the current UI uses labels such as "Salaried";
+    # the trained model expects Self_Employed = Yes/No.
+    employment = str(raw["self_employed"]).strip()
+    employment_lower = employment.lower().replace("-", " ").replace("_", " ")
+    if employment_lower in {"yes", "self employed", "selfemployed", "business", "self employed / business"}:
+        employment = "Yes"
+    elif employment_lower in {"no", "salaried", "employed", "unemployed", "not self employed", "not self-employed"}:
+        employment = "No"
+    if employment not in {"Yes", "No"}:
+        raise ValidationError("'employment' must be Salaried/No or Self-employed/Yes.")
+    cleaned["self_employed"] = employment
 
-    # 3. Numeric fields: parse, then range-check. Optional ones fall back
-    #    to a stated neutral default only when genuinely absent.
-    def numeric_field(key, required):
-        raw = _get(form, key)
-        if raw is None:
+    # Validate and normalize categorical values.
+    cleaned["dependents"] = str(raw["dependents"]).strip()
+    if cleaned["dependents"] not in VALID_CATEGORIES["dependents"]:
+        raise ValidationError("'dependents' must be 0, 1, 2, or 3+.")
+
+    cleaned["education"] = str(raw["education"]).strip()
+    if cleaned["education"] not in VALID_CATEGORIES["education"]:
+        raise ValidationError("'education' must be Graduate or Not Graduate.")
+
+    area = str(raw["property_area"]).strip()
+    area_key = area.lower().replace("-", "").replace(" ", "")
+    area_map = {"urban": "Urban", "semiurban": "Semiurban", "rural": "Rural"}
+    if area_key not in area_map:
+        raise ValidationError("'property_area' must be Urban, Semi-urban, or Rural.")
+    cleaned["property_area"] = area_map[area_key]
+
+    # Numeric fields: support omitted optional fields, but never invent an age.
+    def numeric_field(key, required=False):
+        value = raw[key]
+        if value is None:
             if required:
                 raise ValidationError(f"Missing required field: '{key}'.")
             default = OPTIONAL_DEFAULTS[key]
             if default is None:
                 raise ValidationError(f"Missing required field: '{key}'.")
             return float(default)
-        num = _to_number(raw, key)
+        number = _to_number(value, key)
         lo, hi = NUMERIC_RANGES[key]
-        if not (lo <= num <= hi):
-            raise ValidationError(
-                f"'{key}' must be between {lo} and {hi}, got {num}."
-            )
-        return num
+        if not (lo <= number <= hi):
+            raise ValidationError(f"'{key}' must be between {lo} and {hi}, got {number}.")
+        return number
 
     cleaned["applicant_income"] = numeric_field("applicant_income", required=True)
-    cleaned["coapplicant_income"] = numeric_field("coapplicant_income", required=False)
+    cleaned["coapplicant_income"] = numeric_field("coapplicant_income")
     cleaned["loan_amount"] = numeric_field("loan_amount", required=True)
-    cleaned["loan_term"] = numeric_field("loan_term", required=False)
-    cleaned["credit_score"] = numeric_field("credit_score", required=False)
+    cleaned["loan_term"] = numeric_field("loan_term")
+    cleaned["credit_score"] = numeric_field("credit_score")
     cleaned["age"] = numeric_field("age", required=True)
-    cleaned["existing_loans"] = numeric_field("existing_loans", required=False)
+    cleaned["existing_loans"] = numeric_field("existing_loans")
 
-    # 4. Credit_History is binary and safety-critical: require an explicit
-    #    0/1, never assume "good" (1) when the client omits it.
-    ch_raw = _get(form, "credit_history")
-    if ch_raw not in ("0", "1", 0, 1, 0.0, 1.0):
-        raise ValidationError("'credit_history' must be exactly 0 or 1.")
-    cleaned["credit_history"] = float(ch_raw)
+    # UI labels: "Clean / on time" and "Poor / missed payments".
+    credit = str(raw["credit_history"]).strip().lower().replace("_", " ")
+    if credit in {"1", "1.0", "yes", "good", "clean", "clean / on time", "clean/on time", "on time", "good credit history"}:
+        cleaned["credit_history"] = 1.0
+    elif credit in {"0", "0.0", "no", "poor", "poor / missed payments", "poor/missed payments", "missed payments", "bad"}:
+        cleaned["credit_history"] = 0.0
+    else:
+        raise ValidationError("'credit_history' must be Clean / on time or Poor / missed payments.")
 
     return cleaned
-
 
 def build_input_row(cleaned):
     """Turn validated data into a single-row DataFrame matching training columns."""
@@ -271,8 +321,9 @@ def predict():
         }
     except ValidationError as exc:
         return jsonify({"error": str(exc)}), 400
-    except Exception as exc:  # keep the demo resilient to truly unexpected input
-        return jsonify({"error": f"Unexpected error: {exc}"}), 400
+    except Exception:
+        app.logger.exception("Prediction failed")
+        return jsonify({"error": "Prediction failed on the server. Check the Render application logs for details."}), 500
 
     if is_json:
         return jsonify(result)
