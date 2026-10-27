@@ -110,6 +110,8 @@ def validate_and_clean(form):
 
     # Support both the current webpage field names and older/API field names.
     aliases = {
+        "gender": ("gender",),
+        "married": ("married", "marital_status"),
         "dependents": ("dependents",),
         "education": ("education",),
         "self_employed": ("self_employed", "employment"),
@@ -138,6 +140,18 @@ def validate_and_clean(form):
         raise ValidationError(f"Missing required field(s): {missing_text}.")
 
     cleaned = {}
+
+    # Keep these fields available for older saved pipelines that were trained
+    # with Gender/Married. Newer pipelines may ignore these extra columns.
+    gender = str(raw["gender"] or "Male").strip().title()
+    if gender not in {"Male", "Female"}:
+        raise ValidationError("'gender' must be Male or Female.")
+    cleaned["gender"] = gender
+
+    married = str(raw["married"] or "No").strip().title()
+    if married not in {"Yes", "No"}:
+        raise ValidationError("'married' must be Yes or No.")
+    cleaned["married"] = married
 
     # Employment dropdown in the current UI uses labels such as "Salaried";
     # the trained model expects Self_Employed = Yes/No.
@@ -207,6 +221,10 @@ def build_input_row(cleaned):
     return pd.DataFrame(
         [
             {
+                # Include both fields for backward compatibility with older
+                # model.pkl files; pipelines trained without them ignore extras.
+                "Gender": cleaned["gender"],
+                "Married": cleaned["married"],
                 "Dependents": cleaned["dependents"],
                 "Education": cleaned["education"],
                 "Self_Employed": cleaned["self_employed"],
@@ -304,9 +322,10 @@ def predict():
         cleaned = validate_and_clean(form)
         row = build_input_row(cleaned)
 
-        # Keep prediction schema exactly aligned with the trained pipeline.
-        row = row[FEATURE_COLUMNS]
-
+        # Do not hard-slice to a fixed feature list here. The repository may
+        # contain an older pickle trained with Gender/Married or a newer one
+        # without them. Passing the full named DataFrame lets the saved
+        # ColumnTransformer select the columns it was actually trained on.
         proba = model.predict_proba(row)[0]
         approve_proba = float(proba[1])
         prediction = "Approved" if approve_proba >= 0.5 else "Rejected"

@@ -16,28 +16,62 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
+    // Check browser-side validation
+    if (!form.reportValidity()) return;
+
     const originalLabel = submitBtn.textContent;
+
     submitBtn.disabled = true;
     submitBtn.textContent = "Reading the ledger…";
+
+    emptyState.hidden = true;
+    resultState.hidden = true;
+    errorState.hidden = true;
+    formHint.textContent = "Processing your application…";
 
     const payload = Object.fromEntries(new FormData(form).entries());
 
     try {
       const response = await fetch("/predict", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(payload)
       });
 
-      if (!response.ok) throw new Error("Request failed");
-
+      // Read the backend response, including errors
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `Request failed (${response.status})`);
+      }
+
+      if (!data.prediction) {
+        throw new Error("The server response does not contain a prediction.");
+      }
+
       renderResult(data);
+
+      formHint.textContent = "Assessment completed successfully.";
+
     } catch (err) {
+      console.error("Loan prediction error:", err);
+
       emptyState.hidden = true;
       resultState.hidden = true;
       errorState.hidden = false;
-      formHint.textContent = "Something went wrong. Try again.";
+
+      // Show the actual error returned by Flask
+      const errorParagraph = errorState.querySelector("p");
+
+      if (errorParagraph) {
+        errorParagraph.textContent = err.message;
+      }
+
+      formHint.textContent = "Assessment failed. Check the error message.";
+
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = originalLabel;
@@ -52,27 +86,40 @@ document.addEventListener("DOMContentLoaded", () => {
     const approved = data.prediction === "Approved";
 
     stampText.textContent = data.prediction;
+
     stamp.classList.toggle("stamp-reject", !approved);
-    confidenceFill.classList.toggle("confidence-fill-reject", !approved);
+    confidenceFill.classList.toggle(
+      "confidence-fill-reject",
+      !approved
+    );
 
-    const confidence = approved
-    ? data.approve_probability
-    : data.reject_probability;
+    const confidence = Number(
+      approved
+        ? data.approve_probability
+        : data.reject_probability
+    );
 
-confidenceValue.textContent = confidence;
+    confidenceValue.textContent = confidence.toFixed(1);
 
-requestAnimationFrame(() => {
-    confidenceFill.style.width = `${confidence}%`;
-});
+    requestAnimationFrame(() => {
+      confidenceFill.style.width =
+        `${Math.max(0, Math.min(100, confidence))}%`;
+    });
 
-    reasonsList.innerHTML = "";
-    data.reasons.forEach((reason) => {
+    reasonsList.replaceChildren();
+
+    (data.reasons || []).forEach((reason) => {
       const li = document.createElement("li");
+
       li.className = `reason-${reason.type}`;
       li.textContent = reason.text;
+
       reasonsList.appendChild(li);
     });
 
-    resultState.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    resultState.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest"
+    });
   }
 });
