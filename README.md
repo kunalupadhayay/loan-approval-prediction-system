@@ -338,8 +338,6 @@ running Flask with debug mode enabled.
 
 - This is a **machine learning demonstration project**, not a real banking or
   lending system.
-- The training data is **synthetic** and should not be treated as real-world
-  underwriting data.
 - A model prediction is an estimate produced from learned patterns; it is not
   a guarantee of loan approval.
 - Model confidence/probability should not be interpreted as a guaranteed
