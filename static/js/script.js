@@ -55,12 +55,15 @@ document.addEventListener("DOMContentLoaded", () => {
     stamp.classList.toggle("stamp-reject", !approved);
     confidenceFill.classList.toggle("confidence-fill-reject", !approved);
 
-    const pct = approved ? data.approve_probability : data.approve_probability;
-    confidenceValue.textContent = data.approve_probability;
-    // animate the bar
-    requestAnimationFrame(() => {
-      confidenceFill.style.width = `${data.approve_probability}%`;
-    });
+    const confidence = approved
+    ? data.approve_probability
+    : data.reject_probability;
+
+confidenceValue.textContent = confidence;
+
+requestAnimationFrame(() => {
+    confidenceFill.style.width = `${confidence}%`;
+});
 
     reasonsList.innerHTML = "";
     data.reasons.forEach((reason) => {
