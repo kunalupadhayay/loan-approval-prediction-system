@@ -1,19 +1,19 @@
 {
-  "accuracy": 0.915,
-  "precision": 0.9604,
-  "recall": 0.9297,
-  "f1_score": 0.9448,
-  "roc_auc": 0.9558,
+  "accuracy": 0.912,
+  "precision": 0.959,
+  "recall": 0.9271,
+  "f1_score": 0.9428,
+  "roc_auc": 0.957,
   "train_size": 4000,
   "test_size": 1000,
   "confusion_matrix": [
     [
-      188,
-      30
+      187,
+      31
     ],
     [
-      55,
-      727
+      57,
+      725
     ]
   ]
 }

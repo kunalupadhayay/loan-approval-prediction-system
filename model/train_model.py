@@ -20,8 +20,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model")
-DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "loan_dataset.csv")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data",
+    "loan_dataset.csv"
+)
 MODEL_PATH = os.path.join(BASE_DIR, "loan_model.pkl")
 METRICS_PATH = os.path.join(BASE_DIR, "metrics.json")
 FI_PATH = os.path.join(BASE_DIR, "feature_importance.json")
